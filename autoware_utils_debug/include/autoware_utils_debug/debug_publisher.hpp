@@ -47,7 +47,10 @@ template <typename NodeT = rclcpp::Node>
 class BasicDebugPublisher
 {
 public:
-  explicit BasicDebugPublisher(NodeT * node, const char * ns) : node_(node), ns_(ns) {}
+  // ns stored by value so callers can pass temporary std::string (e.g. node->get_name() on
+  // autoware::agnocast_wrapper::Node, which returns std::string by value).
+  BasicDebugPublisher(NodeT * node, const std::string & ns) : node_(node), ns_(ns) {}
+  BasicDebugPublisher(NodeT * node, const char * ns) : node_(node), ns_(ns) {}
 
   template <
     class T,
@@ -57,7 +60,7 @@ public:
     using PubPtr = decltype(node_->template create_publisher<T>(std::string{}, rclcpp::QoS(1)));
 
     if (pub_map_.count(name) == 0) {
-      pub_map_[name] = node_->template create_publisher<T>(std::string(ns_) + "/" + name, qos);
+      pub_map_[name] = node_->template create_publisher<T>(ns_ + "/" + name, qos);
     }
 
     std::any_cast<PubPtr &>(pub_map_.at(name))->publish(data);
@@ -73,7 +76,7 @@ public:
 
 private:
   NodeT * node_;
-  const char * ns_;
+  std::string ns_;
   std::unordered_map<std::string, std::any> pub_map_;
 };
 
