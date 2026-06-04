@@ -82,6 +82,48 @@ private:
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 };
+
+// Free-function counterparts of TransformListener::get_transform / get_latest_transform for nodes
+// that already own a buffer directly. Templated on the buffer type so they work with both
+// tf2_ros::Buffer and autoware::agnocast_wrapper::Buffer (agnocast::Buffer) — the latter is required
+// by agnocast Method 2 nodes, whose /tf subscription is owned by the agnocast backend rather than a
+// tf2_ros::TransformListener. Keeping these templated lets this package stay free of any agnocast
+// dependency: the agnocast::Buffer instantiation happens in the calling node's translation unit.
+template <class BufferT>
+geometry_msgs::msg::TransformStamped::ConstSharedPtr get_transform(
+  BufferT & buffer, const rclcpp::Logger & logger, rclcpp::Clock & clock, const std::string & from,
+  const std::string & to, const rclcpp::Time & time, const rclcpp::Duration & duration)
+{
+  geometry_msgs::msg::TransformStamped tf;
+  try {
+    tf = buffer.lookupTransform(from, to, time, duration);
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_WARN_THROTTLE(
+      logger, clock, 5000, "failed to get transform from %s to %s: %s", from.c_str(), to.c_str(),
+      ex.what());
+    return {};
+  }
+
+  return std::make_shared<const geometry_msgs::msg::TransformStamped>(tf);
+}
+
+template <class BufferT>
+geometry_msgs::msg::TransformStamped::ConstSharedPtr get_latest_transform(
+  BufferT & buffer, const rclcpp::Logger & logger, rclcpp::Clock & clock, const std::string & from,
+  const std::string & to)
+{
+  geometry_msgs::msg::TransformStamped tf;
+  try {
+    tf = buffer.lookupTransform(from, to, tf2::TimePointZero);
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_WARN_THROTTLE(
+      logger, clock, 5000, "failed to get transform from %s to %s: %s", from.c_str(), to.c_str(),
+      ex.what());
+    return {};
+  }
+
+  return std::make_shared<const geometry_msgs::msg::TransformStamped>(tf);
+}
 }  // namespace autoware_utils_tf
 
 #endif  // AUTOWARE_UTILS_TF__TRANSFORM_LISTENER_HPP_
